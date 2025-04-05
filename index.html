@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OpenLive FAQ</title>
+    <link rel="stylesheet" href="styles/main.css">
+</head>
+<body>
+    <div class="faq-system" id="app">
+        <!-- Danh mục FAQ -->
+        <div class="faq-categories">
+            <button 
+                v-for="category in faqData.categories" 
+                :key="category.id"
+                @click="selectCategory(category.id)"
+                :class="{ active: currentCategory?.id === category.id }"
+            >
+                {{ category.title }}
+            </button>
+        </div>
+
+        <!-- Danh sách câu hỏi -->
+        <div class="questions-list" v-if="currentCategory">
+            <div 
+                v-for="question in currentCategory.questions" 
+                :key="question.id"
+                @click="showAnswer(question.answer)"
+                class="question"
+            >
+                {{ question.question }}
+            </div>
+        </div>
+
+        <!-- Hiển thị câu trả lời -->
+        <div class="answer-box" v-if="currentAnswer">
+            <pre>{{ currentAnswer }}</pre>
+        </div>
+
+        <!-- Nút chat AI & Liên hệ -->
+        <div class="support-section">
+            <button @click="openAIChat" class="ai-button">
+                🤖 Chat với AI
+            </button>
+            <div class="contact-info">
+                <p>📞 SĐT: 0913831686</p>
+                <p>📘 Facebook: <a href="#">[Link]</a></p>
+                <p>💬 Zalo: <a href="#">[Link]</a></p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Import Vue 3 -->
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <!-- Import file JS -->
+    <script type="module" src="assets/js/app.js"></script>
+</body>
+</html>

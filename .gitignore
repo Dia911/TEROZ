@@ -1,0 +1,136 @@
+# ========================
+# CORE SECURITY & SENSITIVE DATA
+# ========================
+# File cấu hình và bảo mật
+**/.env*
+**/*.env*
+**/service-account.json
+**/credentials.json
+**/config.json
+**/secure/
+**/private-keys/
+**/*.key
+**/*.pem
+**/*.crt
+**/*.priv
+**/*.pub
+**/firebase-config.json
+
+# ========================
+# PROJECT SPECIFIC IGNORES
+# ========================
+# Thư mục/File đặc thù dự án
+/bin/chat-test.js
+/openlive-partner/
+/legal-docs/
+/ui-elements/
+/branding/
+/Tracking/google-sheets.js
+
+# ======================== 
+# DEVELOPMENT ENVIRONMENT 
+# ========================
+# IDE & Editor configs
+.idea/
+.vscode/
+*.code-workspace
+*.swp
+*.swo
+*.sublime-*
+*.iml
+*.ipr
+*.iws
+.history/
+
+# ========================
+# DEPENDENCIES & BUILD
+# ========================
+# Node & Package managers
+node_modules/
+.yarn/
+.yarnrc
+.pnp.*
+.yarn-integrity
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
+# Build artifacts
+dist/
+build/
+.cache/
+.next/
+out/
+.vercel/
+.serverless/
+*.min.js
+*.min.css
+*.map
+
+# ========================
+# SYSTEM & RUNTIME
+# ========================
+# OS & Runtime files
+.DS_Store
+Thumbs.db
+desktop.ini
+*.log
+npm-debug.log*
+yarn-error.log
+*.pid
+*.seed
+*.dump
+*.core
+logs/
+dump.rdb
+*.sock
+*.pid
+
+# ========================
+# TESTING & COVERAGE
+# ========================
+# Test files and reports
+coverage/
+.nyc_output/
+test-results/
+*.lcov
+*.mock.js
+*.test.js
+__snapshots__/
+
+# ========================
+# TEMPORARY FILES
+# ========================
+# Temp & Cache files
+temp/
+tmp/
+*.tmp
+*.bak
+~$*
+*.~*
+*.swp
+*.swo
+.cache/
+.temp/
+
+# ========================
+# DATABASE & STORAGE
+# ========================
+# Local databases
+*.db
+*.db-journal
+*.sqlite
+*.sql
+*.dump
+storage/*
+
+# ========================
+# MISCELLANEOUS
+# ========================
+# Các file khác
+*.zip
+*.tar.gz
+*.tgz
+*.rar
+*.7z
+.env.*.local
