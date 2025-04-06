@@ -1,124 +1,169 @@
-// app.js - NexusOne Core Application v3.0 (Optimized)
+// app.js - NexusOne Core Application v3.0 (Production Ready)
 require('dotenv').config();
 const express = require('express');
 const app = express();
-const fs = require('fs');
+const fs = require('fs').promises;
 const path = require('path');
 const chalk = require('chalk');
 
-// Fixed module paths using absolute paths
-const { NexusEngine } = require(path.join(__dirname, '../modules/nexus-engine'));
-const CustomerAnalyzer = require(path.join(__dirname, '../Ai/customer-analyzer')); // Sửa lại đường dẫn đúng
-const NexusSheet = require(path.join(__dirname, '../Tracking/google-sheets'));
-const PerformanceTracker = require(path.join(__dirname, '../utils/logger'));
-const PlatformRouter = require(path.join(__dirname, './platform-router'));
-const PlatformService = require(path.join(__dirname, './platform-service'));
+// Configurable Constants
+const CONFIG = {
+  MAX_FILE_SIZE: '10mb',
+  SENTIMENT_THRESHOLD: 0.25,
+  DEFAULT_PORT: 3000
+};
 
-// Enhanced Middleware Configuration
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+// Dynamic Module Loading
+const loadModule = (relativePath) => {
+  try {
+    return require(path.resolve(__dirname, relativePath));
+  } catch (error) {
+    console.error(chalk.red(`[MODULE ERROR] Failed to load ${relativePath}:`), error);
+    process.exit(1);
+  }
+};
+
+// Core Dependencies
+const { NexusEngine } = loadModule('../modules/nexus-engine');
+const CustomerAnalyzer = loadModule('../Ai/customer-analyzer'); // Case-sensitive path
+const NexusSheet = loadModule('../Tracking/google-sheets');
+const PerformanceTracker = loadModule('../utils/logger');
+const PlatformRouter = loadModule('./platform-router');
+const PlatformService = loadModule('./platform-service');
+
+// Middleware Configuration
+app.use(express.json({ limit: CONFIG.MAX_FILE_SIZE }));
+app.use(express.urlencoded({ 
+  extended: true, 
+  limit: CONFIG.MAX_FILE_SIZE,
+  parameterLimit: 1000 
+}));
 
 class NexusOneCore {
   constructor() {
     this._validateEnvironment();
-    
-    // Initialize services with error handling
-    try {
-      this.engine = new NexusEngine({
-        apiKey: process.env.NEXUS_API_KEY,
-        environment: process.env.NODE_ENV || 'development'
-      });
-      
-      this.analyzer = new CustomerAnalyzer({
-        sentimentThreshold: 0.2,
-        language: 'vi'
-      });
-      
-      this.sheet = new NexusSheet({
-        sheetId: process.env.GOOGLE_SHEET_ID,
-        credentials: path.resolve(__dirname, '../config/service-account.json')
-      });
-      
-      this.performance = new PerformanceTracker();
-      this.router = new PlatformRouter();
-      this.service = new PlatformService();
-    } catch (err) {
-      console.error(chalk.red('Core service initialization failed:'), err);
-      process.exit(1);
-    }
-
+    this._initializeServices();
     this._initErrorHandling();
     this._loadPlatformHandlers();
   }
 
   _validateEnvironment() {
-    const requiredVars = [
-      'NEXUS_API_KEY',
-      'GOOGLE_SHEET_ID',
-      'FACEBOOK_APP_SECRET'
-    ];
-    
-    const missingVars = requiredVars.filter(v => !process.env[v]);
-    if (missingVars.length > 0) {
-      throw new Error(`Missing required environment variables: ${missingVars.join(', ')}`);
+    const requiredEnvs = {
+      NEXUS_API_KEY: 'API key for Nexus Engine',
+      GOOGLE_SHEET_ID: 'Google Sheets ID for logging',
+      FACEBOOK_APP_SECRET: 'Facebook API secret'
+    };
+
+    const missing = Object.entries(requiredEnvs)
+      .filter(([key]) => !process.env[key])
+      .map(([key, desc]) => `${key} (${desc})`);
+
+    if (missing.length) {
+      const errorMsg = `Missing environment variables:\n${missing.join('\n')}`;
+      console.error(chalk.red.bold('❌ Environment Validation Failed:'));
+      throw new Error(errorMsg);
+    }
+  }
+
+  _initializeServices() {
+    try {
+      this.engine = new NexusEngine({
+        apiKey: process.env.NEXUS_API_KEY,
+        environment: process.env.NODE_ENV || 'production'
+      });
+
+      this.analyzer = new CustomerAnalyzer({
+        sentimentThreshold: CONFIG.SENTIMENT_THRESHOLD,
+        language: 'vi',
+        cacheDir: path.join(__dirname, '../Ai/cache')
+      });
+
+      this.sheet = new NexusSheet({
+        sheetId: process.env.GOOGLE_SHEET_ID,
+        credentials: path.resolve(__dirname, '../config/service-account.json')
+      });
+
+      this.performance = new PerformanceTracker({
+        logLevel: process.env.LOG_LEVEL || 'info'
+      });
+
+      this.router = new PlatformRouter();
+      this.service = new PlatformService();
+
+    } catch (error) {
+      console.error(chalk.red.bold('⛔ Critical Service Initialization Error:'), error);
+      process.exit(1);
     }
   }
 
   _initErrorHandling() {
-    process.on('unhandledRejection', (err) => {
-      this.performance.logError(err);
-      console.error(chalk.red('[UNHANDLED REJECTION]'), err);
-    });
-    
-    process.on('uncaughtException', (err) => {
-      this.performance.logError(err);
-      console.error(chalk.red('[UNCAUGHT EXCEPTION]'), err);
-      process.exit(1);
-    });
+    const errorHandler = (err, type) => {
+      this.performance.logError({
+        type,
+        message: err.message,
+        stack: err.stack,
+        timestamp: new Date().toISOString()
+      });
+      
+      console.error(chalk.red.bold(`\n⚠️  Unhandled ${type}:`), err);
+      
+      if (type === 'UNCAUGHT_EXCEPTION') {
+        setTimeout(() => process.exit(1), 1000);
+      }
+    };
+
+    process.on('unhandledRejection', (err) => errorHandler(err, 'REJECTION'));
+    process.on('uncaughtException', (err) => errorHandler(err, 'EXCEPTION'));
   }
 
-  _loadPlatformHandlers() {
+  async _loadPlatformHandlers() {
     try {
       const handlersDir = path.resolve(__dirname, '../handlers');
-      const platformFiles = fs.readdirSync(handlersDir);
+      const files = await fs.readdir(handlersDir);
       
-      platformFiles.forEach(file => {
-        if (file.endsWith('.js') && file !== 'PlatformHandler.js') {
-          try {
-            const platformName = path.basename(file, '.js');
-            const HandlerClass = require(path.join(handlersDir, file));
-            
-            this.router.register(
-              platformName, 
-              new HandlerClass(this.engine, this.analyzer)
-            );
-            
-            console.log(chalk.green(`✓ Loaded handler for ${platformName}`));
-          } catch (err) {
-            console.error(chalk.red(`Failed to load handler ${file}:`), err);
-          }
+      await Promise.all(files.map(async (file) => {
+        if (!file.endsWith('.js') || file === 'PlatformHandler.js') return;
+
+        try {
+          const platformName = path.basename(file, '.js');
+          const { default: HandlerClass } = await import(`file://${path.join(handlersDir, file)}`);
+          
+          this.router.register(
+            platformName,
+            new HandlerClass({
+              engine: this.engine,
+              analyzer: this.analyzer,
+              logger: this.performance
+            })
+          );
+          
+          console.log(chalk.green.bold(`✓ Successfully loaded ${platformName.toUpperCase()} handler`));
+        } catch (error) {
+          console.error(chalk.red(`Failed to load ${file}:`), error);
         }
-      });
-    } catch (err) {
-      console.error(chalk.red('Failed to load platform handlers:'), err);
+      }));
+      
+    } catch (error) {
+      console.error(chalk.red.bold('‼️ Platform Handler Loading Failed:'), error);
+      process.exit(1);
     }
   }
 
   _setupRoutes() {
-    // Health Check with improved response
+    // Health Check Endpoint
     app.get('/health', (req, res) => {
-      res.json({
-        status: 'healthy',
+      res.status(200).json({
+        status: 'operational',
         version: '3.0',
         environment: process.env.NODE_ENV,
         uptime: process.uptime(),
-        timestamp: new Date().toISOString()
+        memoryUsage: process.memoryUsage()
       });
     });
-    
-    // Webhook Route with enhanced error handling
+
+    // Main Webhook Processor
     app.post('/webhook/:platform', async (req, res) => {
-      const startTime = Date.now();
+      const start = Date.now();
       const { platform } = req.params;
       
       try {
@@ -126,30 +171,29 @@ class NexusOneCore {
         
         await this.sheet.logInteraction({
           platform,
-          timestamp: new Date().toISOString(),
-          processingTime: Date.now() - startTime,
+          duration: Date.now() - start,
+          success: true,
           data: result
         });
-        
+
         res.json({
-          success: true,
+          status: 'success',
+          processingTime: `${Date.now() - start}ms`,
           ...result
         });
-      } catch (error) {
-        this.performance.logError(error);
         
-        // Log failed interaction
+      } catch (error) {
         await this.sheet.logInteraction({
           platform,
-          timestamp: new Date().toISOString(),
-          error: error.message,
-          stack: error.stack
-        }).catch(e => console.error('Failed to log error:', e));
-        
-        res.status(500).json({ 
+          duration: Date.now() - start,
           success: false,
-          error: error.message,
-          code: error.code || 'INTERNAL_ERROR'
+          error: error.message
+        });
+
+        res.status(error.statusCode || 500).json({
+          status: 'error',
+          code: error.code || 'INTERNAL_ERROR',
+          message: error.message
         });
       }
     });
@@ -159,49 +203,48 @@ class NexusOneCore {
     try {
       await Promise.all([
         this.engine.initialize(),
-        this.sheet.connect()
+        this.sheet.connect(),
+        this.performance.startMonitoring()
       ]);
-      
+
       this._setupRoutes();
-      
-      const port = process.env.PORT || 3000;
+
+      const port = process.env.PORT || CONFIG.DEFAULT_PORT;
       const server = app.listen(port, () => {
-        console.log(chalk.blue.bold(`\nNexusOne Core v3.0 running on port ${port}`));
-        console.log(chalk.grey(`Environment: ${process.env.NODE_ENV || 'development'}`));
-        console.log(chalk.grey(`Start time: ${new Date().toISOString()}\n`));
+        console.log([
+          chalk.blue.bold('\n🚀 NexusOne Core v3.0'),
+          chalk.gray(`• Port: ${port}`),
+          chalk.gray(`• Environment: ${process.env.NODE_ENV || 'production'}`),
+          chalk.gray(`• Start Time: ${new Date().toISOString()}\n`)
+        ].join('\n'));
       });
-      
-      // Enhanced server error handling
-      server.on('error', (err) => {
-        console.error(chalk.red('Server error:'), err);
+
+      server.on('error', (error) => {
+        console.error(chalk.red.bold('⚡ Server Error:'), error);
         process.exit(1);
       });
+
+      return server;
       
-      return app;
     } catch (error) {
-      this.performance.logError(error);
-      console.error(chalk.red('Failed to start NexusOne Core:'), error);
+      console.error(chalk.red.bold('🔥 Critical Startup Failure:'), error);
       process.exit(1);
     }
   }
 }
 
+// Export for Cluster Mode
 module.exports = {
   app,
   NexusOneCore
 };
 
-// Startup with improved logging
+// Single Instance Launch
 if (require.main === module) {
-  console.log(chalk.yellow('Starting NexusOne Core application...'));
+  console.log(chalk.yellow.bold('\n🔧 Starting NexusOne System...'));
   
   const nexus = new NexusOneCore();
   nexus.start()
-    .then(() => {
-      console.log(chalk.green('Application started successfully'));
-    })
-    .catch(err => {
-      console.error(chalk.red('Fatal startup error:'), err);
-      process.exit(1);
-    });
+    .then(() => console.log(chalk.green.bold('\n✅ System Operational')))
+    .catch((error) => console.error(chalk.red.bold('\n❌ Boot Sequence Failed:'), error));
 }
