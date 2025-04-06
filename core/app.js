@@ -8,7 +8,7 @@ const chalk = require('chalk');
 
 // Fixed module paths using absolute paths
 const { NexusEngine } = require(path.join(__dirname, '../modules/nexus-engine'));
-const CustomerAnalyzer = require(path.join(__dirname, '../ai/customer-analyzer'));
+const CustomerAnalyzer = require(path.join(__dirname, '../Ai/customer-analyzer')); // Sửa lại đường dẫn đúng
 const NexusSheet = require(path.join(__dirname, '../Tracking/google-sheets'));
 const PerformanceTracker = require(path.join(__dirname, '../utils/logger'));
 const PlatformRouter = require(path.join(__dirname, './platform-router'));
