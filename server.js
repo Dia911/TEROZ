@@ -1,14 +1,22 @@
-// server.js - Phiên bản hoàn chỉnh cho NexusOne
-require('dotenv').config();
-const express = require('express');
-const morgan = require('morgan');
-const cors = require('cors');
-const helmet = require('helmet');
-const path = require('path');
-const rateLimit = require('express-rate-limit');
-const logger = require('./utils/logger');
-const { NexusOneCore } = require('./core/app');
-const faqRouter = require('./config/faq');
+// server.js - Phiên bản ESM hoàn chỉnh
+import 'dotenv/config';
+import express from 'express';
+import morgan from 'morgan';
+import cors from 'cors';
+import helmet from 'helmet';
+import { dirname } from 'path';
+import { fileURLToPath } from 'url';
+import rateLimit from 'express-rate-limit';
+import crypto from 'crypto';
+import logger from './utils/logger.js';
+import { NexusOneCore } from './core/app.js';
+import faqRouter from './config/faq.js';
+import PlatformHandler from './handlers/PlatformHandler.js';
+import googleSheets from './tracking/google-sheets.js';
+
+// Khởi tạo __dirname trong ESM
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
 // Khởi tạo Express app
 const app = express();
@@ -85,7 +93,7 @@ app.use('/webhook/:platform', apiLimiter, (req, res, next) => {
   });
   
   next();
-}, require('./handlers/PlatformHandler'));
+}, PlatformHandler);
 
 // 4.2 FAQ Routes
 app.use('/api/faq', faqRouter);
@@ -97,14 +105,14 @@ app.get('/health', (req, res) => {
     version: process.env.npm_package_version,
     uptime: process.uptime(),
     memoryUsage: process.memoryUsage(),
-    database: 'connected', // Thêm trạng thái kết nối DB nếu có
+    database: 'connected',
     timestamp: new Date().toISOString()
   };
   res.status(200).json(healthStatus);
 });
 
 // 4.4 Static Files (nếu cần)
-app.use('/public', express.static(path.join(__dirname, 'public'), {
+app.use('/public', express.static(new URL('./public', import.meta.url).pathname, {
   maxAge: '1y',
   setHeaders: (res, path) => {
     if (path.endsWith('.html')) {
@@ -115,7 +123,7 @@ app.use('/public', express.static(path.join(__dirname, 'public'), {
 
 // 5. XỬ LÝ LỖI
 app.use((err, req, res, next) => {
-  const errorId = require('crypto').randomBytes(8).toString('hex');
+  const errorId = crypto.randomBytes(8).toString('hex');
   
   logger.error(`Error ${errorId}`, {
     error: err.message,
@@ -130,7 +138,7 @@ app.use((err, req, res, next) => {
   res.status(err.status || 500).json({
     error: process.env.NODE_ENV === 'production' ? 'Internal Server Error' : err.message,
     errorId,
-    docs: 'https://docs.nexusone.com/errors' // Link tài liệu lỗi
+    docs: 'https://docs.nexusone.com/errors'
   });
 });
 
@@ -164,9 +172,8 @@ const server = app.listen(PORT, async () => {
       memory: process.memoryUsage()
     });
     
-    // Ghi nhận startup thành công
     if (process.env.NODE_ENV === 'production') {
-      require('./tracking/google-sheets').logStartup();
+      await googleSheets.logStartup();
     }
   } catch (error) {
     logger.error('🔴 Failed to start server', error);
@@ -179,4 +186,4 @@ process.on('unhandledRejection', (reason, promise) => {
   logger.error('Unhandled Rejection at:', promise, 'reason:', reason);
 });
 
-module.exports = server; // Cho mục đích testing
+export default server; // Cho mục đích testing
