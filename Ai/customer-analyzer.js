@@ -132,7 +132,51 @@ class CustomerAnalyzer {
     }
   }
 
-  // ... Các phương thức khác giữ nguyên
+  getSentimentSummary(results) {
+    const averageScore = _.meanBy(results, 'score');
+    if (averageScore >= CONFIG.SENTIMENT.POSITIVE_THRESHOLD) {
+      return 'Positive';
+    }
+    if (averageScore <= CONFIG.SENTIMENT.NEGATIVE_THRESHOLD) {
+      return 'Negative';
+    }
+    return 'Neutral';
+  }
+
+  analyzeBehavior(data) {
+    // Giả sử rằng hành vi của khách hàng có thể được đo qua các yếu tố như:
+    // 1. Thời gian phản hồi
+    // 2. Mức độ đầu tư
+    const responseTimes = data.map(entry => this.calculateResponseTime(entry.timestamp));
+    const investments = data.map(entry => this.calculateInvestment(entry.message));
+
+    return {
+      averageResponseTime: _.mean(responseTimes),
+      averageInvestment: _.mean(investments),
+    };
+  }
+
+  calculateResponseTime(timestamp) {
+    const now = new Date();
+    const responseTime = (now - new Date(timestamp)) / 1000; // Thời gian phản hồi tính bằng giây
+    return responseTime;
+  }
+
+  calculateInvestment(message) {
+    // Giả sử mức độ đầu tư của khách hàng được đo qua từ khóa trong tin nhắn
+    const investmentKeywords = ['mua', 'đầu tư', 'tiền', 'chiến lược'];
+    const messageTokens = this.tokenizer.tokenize(message);
+    return _.intersection(messageTokens, investmentKeywords).length;
+  }
+
+  calculateScore(sentiment, behavior) {
+    const sentimentScore = sentiment.average * CONFIG.SCORING.WEIGHTS.SENTIMENT;
+    const investmentScore = behavior.averageInvestment * CONFIG.SCORING.WEIGHTS.INVESTMENT;
+    const responseTimeScore = (1 / behavior.averageResponseTime) * CONFIG.SCORING.WEIGHTS.RESPONSE_TIME;
+
+    const baseScore = sentimentScore + investmentScore + responseTimeScore;
+    return CONFIG.SCORING.FORMULA(baseScore);
+  }
 }
 
 module.exports = new CustomerAnalyzer();
