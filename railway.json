@@ -1,11 +1,17 @@
 {
-    "build": {
-      "builder": "nixpacks",
-      "config": {
-        "startCommand": "npm start"
+    "builds": [
+      {
+        "src": "package.json",
+        "use": "@railway/app-node@^3.0.0",
+        "config": {
+          "runtime": "nodejs18.x"
+        }
       }
-    },
-    "deploy": {
-      "startCommand": "node server.js"
-    }
+    ],
+    "routes": [
+      {
+        "src": "/(.*)",
+        "dest": "/"
+      }
+    ]
   }
