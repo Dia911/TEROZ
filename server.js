@@ -12,7 +12,8 @@ import logger from './utils/logger.js';
 import { NexusOneCore } from './core/app.js';
 import faqRouter from './config/faq.js';
 import PlatformHandler from './handlers/PlatformHandler.js';
-import googleSheets from './tracking/google-sheets.js';
+import googleSheets from './Tracking/google-sheets.js';
+
 
 // Khởi tạo __dirname trong ESM
 const __filename = fileURLToPath(import.meta.url);
