@@ -1,13 +1,19 @@
-// Ai/customer-analyzer.js - Phiên bản CommonJS hoàn chỉnh
-const _ = require('lodash');
-const { GoogleSpreadsheet } = require('google-spreadsheet');
-const natural = require('natural');
-const logger = require('../utils/logger');
-const Sentiment = require('sentiment');
-const path = require('path');
-const fs = require('fs').promises;
+// Ai/customer-analyzer.mjs - Phiên bản ESM hoàn chỉnh
+import _ from 'lodash';
+import { GoogleSpreadsheet } from 'google-spreadsheet';
+import natural from 'natural';
+import logger from '../utils/logger.js';
+import Sentiment from 'sentiment';
+import path from 'path';
+import fs from 'fs/promises';
+import { fileURLToPath } from 'url';
+import { dirname } from 'path';
 
-// Config từ file riêng
+// Tạo __dirname trong ESM
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+
+// Config
 const CONFIG = {
   SENTIMENT: {
     POSITIVE_THRESHOLD: 0.3,
@@ -25,7 +31,7 @@ const CONFIG = {
   GOOGLE_SHEETS: {
     CREDENTIALS: path.resolve(__dirname, '../config/service-account.json'),
     SHEET_INDEX: 0,
-    CACHE_TTL: 3600 // 1 hour
+    CACHE_TTL: 3600
   }
 };
 
@@ -37,17 +43,11 @@ class CustomerAnalyzer {
 
   initializeServices() {
     try {
-      // Khởi tạo Google Sheets
       this.sheet = new GoogleSpreadsheet(process.env.GOOGLE_SHEET_ID);
-      
-      // Khởi tạo NLP
       this.tokenizer = new natural.WordTokenizer();
       this.stemmer = natural.PorterStemmer;
       this.analyzer = new natural.SentimentAnalyzer('English', this.stemmer, 'afinn');
-      
-      // Fallback sentiment
       this.sentiment = new Sentiment();
-      
       logger.info('AI services initialized');
     } catch (error) {
       logger.error('Service initialization failed', error);
@@ -57,11 +57,14 @@ class CustomerAnalyzer {
 
   async initialize() {
     try {
+      const credentialsRaw = await fs.readFile(CONFIG.GOOGLE_SHEETS.CREDENTIALS, 'utf8');
+      const credentials = JSON.parse(credentialsRaw);
+
       await this.sheet.useServiceAccountAuth({
-        client_email: require(CONFIG.GOOGLE_SHEETS.CREDENTIALS).client_email,
-        private_key: require(CONFIG.GOOGLE_SHEETS.CREDENTIALS).private_key
+        client_email: credentials.client_email,
+        private_key: credentials.private_key
       });
-      
+
       await this.sheet.loadInfo();
       logger.info('Connected to Google Sheets');
     } catch (error) {
@@ -71,17 +74,13 @@ class CustomerAnalyzer {
   }
 
   async analyzeUser(userId) {
-    if (this.cache.has(userId)) {
-      return this.cache.get(userId);
-    }
+    if (this.cache.has(userId)) return this.cache.get(userId);
 
     try {
       const data = await this.fetchUserData(userId);
       const analysis = await this.processData(data);
-      
       this.cache.set(userId, analysis);
       setTimeout(() => this.cache.delete(userId), CONFIG.GOOGLE_SHEETS.CACHE_TTL);
-      
       return analysis;
     } catch (error) {
       logger.error(`Analysis failed for user ${userId}`, error);
@@ -134,22 +133,14 @@ class CustomerAnalyzer {
 
   getSentimentSummary(results) {
     const averageScore = _.meanBy(results, 'score');
-    if (averageScore >= CONFIG.SENTIMENT.POSITIVE_THRESHOLD) {
-      return 'Positive';
-    }
-    if (averageScore <= CONFIG.SENTIMENT.NEGATIVE_THRESHOLD) {
-      return 'Negative';
-    }
+    if (averageScore >= CONFIG.SENTIMENT.POSITIVE_THRESHOLD) return 'Positive';
+    if (averageScore <= CONFIG.SENTIMENT.NEGATIVE_THRESHOLD) return 'Negative';
     return 'Neutral';
   }
 
   analyzeBehavior(data) {
-    // Giả sử rằng hành vi của khách hàng có thể được đo qua các yếu tố như:
-    // 1. Thời gian phản hồi
-    // 2. Mức độ đầu tư
     const responseTimes = data.map(entry => this.calculateResponseTime(entry.timestamp));
     const investments = data.map(entry => this.calculateInvestment(entry.message));
-
     return {
       averageResponseTime: _.mean(responseTimes),
       averageInvestment: _.mean(investments),
@@ -158,12 +149,11 @@ class CustomerAnalyzer {
 
   calculateResponseTime(timestamp) {
     const now = new Date();
-    const responseTime = (now - new Date(timestamp)) / 1000; // Thời gian phản hồi tính bằng giây
+    const responseTime = (now - new Date(timestamp)) / 1000;
     return responseTime;
   }
 
   calculateInvestment(message) {
-    // Giả sử mức độ đầu tư của khách hàng được đo qua từ khóa trong tin nhắn
     const investmentKeywords = ['mua', 'đầu tư', 'tiền', 'chiến lược'];
     const messageTokens = this.tokenizer.tokenize(message);
     return _.intersection(messageTokens, investmentKeywords).length;
@@ -173,10 +163,10 @@ class CustomerAnalyzer {
     const sentimentScore = sentiment.average * CONFIG.SCORING.WEIGHTS.SENTIMENT;
     const investmentScore = behavior.averageInvestment * CONFIG.SCORING.WEIGHTS.INVESTMENT;
     const responseTimeScore = (1 / behavior.averageResponseTime) * CONFIG.SCORING.WEIGHTS.RESPONSE_TIME;
-
     const baseScore = sentimentScore + investmentScore + responseTimeScore;
     return CONFIG.SCORING.FORMULA(baseScore);
   }
 }
 
-module.exports = new CustomerAnalyzer();
+const customerAnalyzer = new CustomerAnalyzer();
+export default customerAnalyzer;
