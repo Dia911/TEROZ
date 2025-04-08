@@ -9,7 +9,7 @@ import { fileURLToPath } from 'url';
 import rateLimit from 'express-rate-limit';
 import crypto from 'crypto';
 import logger from './utils/logger.js';
-import { NexusOneCore } from './core/app.js';
+import  NexusOneCore  from './core/app.js';
 import faqRouter from './config/faq.js';
 import PlatformHandler from './handlers/PlatformHandler.js';
 import googleSheets from './Tracking/google-sheets.js';
