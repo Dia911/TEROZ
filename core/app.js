@@ -1,10 +1,18 @@
-// app.js - NexusOne Core Application v3.0 (Production Ready)
-require('dotenv').config();
-const express = require('express');
-const app = express();
-const fs = require('fs').promises;
-const path = require('path');
-const chalk = require('chalk');
+// app.js - NexusOne Core Application v3.0 (ESM - Production Ready)
+
+import dotenv from 'dotenv';
+dotenv.config();
+
+import express from 'express';
+import fs from 'fs/promises';
+import path from 'path';
+import chalk from 'chalk';
+import { fileURLToPath } from 'url';
+import { dirname } from 'path';
+
+// ESM-specific __dirname shim
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
 // Configurable Constants
 const CONFIG = {
@@ -13,10 +21,12 @@ const CONFIG = {
   DEFAULT_PORT: 3000
 };
 
-// Dynamic Module Loading
-const loadModule = (relativePath) => {
+// Dynamic Module Loading (ESM compatible)
+const loadModule = async (relativePath) => {
   try {
-    return require(path.resolve(__dirname, relativePath));
+    const fullPath = path.resolve(__dirname, relativePath);
+    const module = await import(`file://${fullPath}`);
+    return module.default || module;
   } catch (error) {
     console.error(chalk.red(`[MODULE ERROR] Failed to load ${relativePath}:`), error);
     process.exit(1);
@@ -24,12 +34,15 @@ const loadModule = (relativePath) => {
 };
 
 // Core Dependencies
-const { NexusEngine } = loadModule('../modules/nexus-engine');
-const CustomerAnalyzer = loadModule('../Ai/customer-analyzer'); // Case-sensitive path
-const NexusSheet = loadModule('../Tracking/google-sheets');
-const PerformanceTracker = loadModule('../utils/logger');
-const PlatformRouter = loadModule('./platform-router');
-const PlatformService = loadModule('./platform-service');
+const { NexusEngine } = await loadModule('../modules/nexus-engine.js');
+const CustomerAnalyzer = await loadModule('../Ai/customer-analyzer.js');
+const NexusSheet = await loadModule('../Tracking/google-sheets.js');
+const PerformanceTracker = await loadModule('../utils/logger.js');
+const PlatformRouter = await loadModule('./platform-router.js');
+const PlatformService = await loadModule('./platform-service.js');
+
+// Express App
+const app = express();
 
 // Middleware Configuration
 app.use(express.json({ limit: CONFIG.MAX_FILE_SIZE }));
@@ -39,7 +52,7 @@ app.use(express.urlencoded({
   parameterLimit: 1000 
 }));
 
-class NexusOneCore {
+export class NexusOneCore {
   constructor() {
     this._validateEnvironment();
     this._initializeServices();
@@ -104,9 +117,9 @@ class NexusOneCore {
         stack: err.stack,
         timestamp: new Date().toISOString()
       });
-      
+
       console.error(chalk.red.bold(`\n⚠️  Unhandled ${type}:`), err);
-      
+
       if (type === 'UNCAUGHT_EXCEPTION') {
         setTimeout(() => process.exit(1), 1000);
       }
@@ -120,14 +133,14 @@ class NexusOneCore {
     try {
       const handlersDir = path.resolve(__dirname, '../handlers');
       const files = await fs.readdir(handlersDir);
-      
+
       await Promise.all(files.map(async (file) => {
         if (!file.endsWith('.js') || file === 'PlatformHandler.js') return;
 
         try {
           const platformName = path.basename(file, '.js');
           const { default: HandlerClass } = await import(`file://${path.join(handlersDir, file)}`);
-          
+
           this.router.register(
             platformName,
             new HandlerClass({
@@ -136,13 +149,12 @@ class NexusOneCore {
               logger: this.performance
             })
           );
-          
+
           console.log(chalk.green.bold(`✓ Successfully loaded ${platformName.toUpperCase()} handler`));
         } catch (error) {
           console.error(chalk.red(`Failed to load ${file}:`), error);
         }
       }));
-      
     } catch (error) {
       console.error(chalk.red.bold('‼️ Platform Handler Loading Failed:'), error);
       process.exit(1);
@@ -150,7 +162,6 @@ class NexusOneCore {
   }
 
   _setupRoutes() {
-    // Health Check Endpoint
     app.get('/health', (req, res) => {
       res.status(200).json({
         status: 'operational',
@@ -161,14 +172,13 @@ class NexusOneCore {
       });
     });
 
-    // Main Webhook Processor
     app.post('/webhook/:platform', async (req, res) => {
       const start = Date.now();
       const { platform } = req.params;
-      
+
       try {
         const result = await this.router.handle(platform, req.body);
-        
+
         await this.sheet.logInteraction({
           platform,
           duration: Date.now() - start,
@@ -181,7 +191,7 @@ class NexusOneCore {
           processingTime: `${Date.now() - start}ms`,
           ...result
         });
-        
+
       } catch (error) {
         await this.sheet.logInteraction({
           platform,
@@ -225,7 +235,7 @@ class NexusOneCore {
       });
 
       return server;
-      
+
     } catch (error) {
       console.error(chalk.red.bold('🔥 Critical Startup Failure:'), error);
       process.exit(1);
@@ -233,18 +243,5 @@ class NexusOneCore {
   }
 }
 
-// Export for Cluster Mode
-module.exports = {
-  app,
-  NexusOneCore
-};
-
-// Single Instance Launch
-if (require.main === module) {
-  console.log(chalk.yellow.bold('\n🔧 Starting NexusOne System...'));
-  
-  const nexus = new NexusOneCore();
-  nexus.start()
-    .then(() => console.log(chalk.green.bold('\n✅ System Operational')))
-    .catch((error) => console.error(chalk.red.bold('\n❌ Boot Sequence Failed:'), error));
-}
+// Export ESM-style
+export { app };
