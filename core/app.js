@@ -33,53 +33,34 @@ const loadModule = async (relativePath) => {
   }
 };
 
-// Core Dependencies
-const { NexusEngine } = await loadModule('../modules/nexus-engine.js');
-const CustomerAnalyzer = await loadModule('../Ai/customer-analyzer.js');
-const NexusSheet = await loadModule('../Tracking/google-sheets.js');
-const PerformanceTracker = await loadModule('../utils/logger.js');
-const PlatformRouter = await loadModule('./platform-router.js');
-const PlatformService = await loadModule('./platform-service.js');
-
-// Express App
-const app = express();
-
-// Middleware Configuration
-app.use(express.json({ limit: CONFIG.MAX_FILE_SIZE }));
-app.use(express.urlencoded({ 
-  extended: true, 
-  limit: CONFIG.MAX_FILE_SIZE,
-  parameterLimit: 1000 
-}));
-
+// Core Application Class
 class NexusOneCore {
   constructor() {
     this._validateEnvironment();
-    this._initializeServices();
-    this._initErrorHandling();
-    this._loadPlatformHandlers();
+    this.app = express();
+    this._setupMiddleware();
   }
 
-  _validateEnvironment() {
-    const requiredEnvs = {
-      NEXUS_API_KEY: 'API key for Nexus Engine',
-      GOOGLE_SHEET_ID: 'Google Sheets ID for logging',
-      FACEBOOK_APP_SECRET: 'Facebook API secret'
-    };
-
-    const missing = Object.entries(requiredEnvs)
-      .filter(([key]) => !process.env[key])
-      .map(([key, desc]) => `${key} (${desc})`);
-
-    if (missing.length) {
-      const errorMsg = `Missing environment variables:\n${missing.join('\n')}`;
-      console.error(chalk.red.bold('❌ Environment Validation Failed:'));
-      throw new Error(errorMsg);
-    }
-  }
-
-  _initializeServices() {
+  async initialize() {
     try {
+      // Load dependencies asynchronously
+      const [
+        { NexusEngine },
+        CustomerAnalyzer,
+        NexusSheet,
+        PerformanceTracker,
+        PlatformRouter,
+        PlatformService
+      ] = await Promise.all([
+        loadModule('../modules/nexus-engine.js'),
+        loadModule('../Ai/customer-analyzer.js'),
+        loadModule('../Tracking/google-sheets.js'),
+        loadModule('../utils/logger.js'),
+        loadModule('./platform-router.js'),
+        loadModule('./platform-service.js')
+      ]);
+
+      // Initialize services
       this.engine = new NexusEngine({
         apiKey: process.env.NEXUS_API_KEY,
         environment: process.env.NODE_ENV || 'production'
@@ -103,15 +84,47 @@ class NexusOneCore {
       this.router = new PlatformRouter();
       this.service = new PlatformService();
 
+      await this._loadPlatformHandlers();
+      this._setupRoutes();
+      this._initErrorHandling();
+
+      return this;
     } catch (error) {
-      console.error(chalk.red.bold('⛔ Critical Service Initialization Error:'), error);
+      console.error(chalk.red.bold('⛔ Core Initialization Error:'), error);
       process.exit(1);
+    }
+  }
+
+  _setupMiddleware() {
+    this.app.use(express.json({ limit: CONFIG.MAX_FILE_SIZE }));
+    this.app.use(express.urlencoded({ 
+      extended: true, 
+      limit: CONFIG.MAX_FILE_SIZE,
+      parameterLimit: 1000 
+    }));
+  }
+
+  _validateEnvironment() {
+    const requiredEnvs = {
+      NEXUS_API_KEY: 'API key for Nexus Engine',
+      GOOGLE_SHEET_ID: 'Google Sheets ID for logging',
+      FACEBOOK_APP_SECRET: 'Facebook API secret'
+    };
+
+    const missing = Object.entries(requiredEnvs)
+      .filter(([key]) => !process.env[key])
+      .map(([key, desc]) => `${key} (${desc})`);
+
+    if (missing.length) {
+      const errorMsg = `Missing environment variables:\n${missing.join('\n')}`;
+      console.error(chalk.red.bold('❌ Environment Validation Failed:'));
+      throw new Error(errorMsg);
     }
   }
 
   _initErrorHandling() {
     const errorHandler = (err, type) => {
-      this.performance.logError({
+      this.performance?.logError({
         type,
         message: err.message,
         stack: err.stack,
@@ -162,7 +175,7 @@ class NexusOneCore {
   }
 
   _setupRoutes() {
-    app.get('/health', (req, res) => {
+    this.app.get('/health', (req, res) => {
       res.status(200).json({
         status: 'operational',
         version: '3.0',
@@ -172,7 +185,7 @@ class NexusOneCore {
       });
     });
 
-    app.post('/webhook/:platform', async (req, res) => {
+    this.app.post('/webhook/:platform', async (req, res) => {
       const start = Date.now();
       const { platform } = req.params;
 
@@ -217,10 +230,8 @@ class NexusOneCore {
         this.performance.startMonitoring()
       ]);
 
-      this._setupRoutes();
-
       const port = process.env.PORT || CONFIG.DEFAULT_PORT;
-      const server = app.listen(port, () => {
+      const server = this.app.listen(port, () => {
         console.log([
           chalk.blue.bold('\n🚀 NexusOne Core v3.0'),
           chalk.gray(`• Port: ${port}`),
@@ -235,7 +246,6 @@ class NexusOneCore {
       });
 
       return server;
-
     } catch (error) {
       console.error(chalk.red.bold('🔥 Critical Startup Failure:'), error);
       process.exit(1);
@@ -243,6 +253,11 @@ class NexusOneCore {
   }
 }
 
-// ✅ Chuẩn export để dùng như: import ChatCore from '../core/app.js'
-export default NexusOneCore;
-export { app };
+// Factory function to create and initialize the core
+const createNexusOneCore = async () => {
+  const core = new NexusOneCore();
+  return core.initialize();
+};
+
+export default createNexusOneCore;
+export { CONFIG };
