@@ -5,7 +5,7 @@
   "main": "server.js",
   "type": "module",
   "scripts": {
-  "start": "NODE_ENV=production node server.js",
+    "start": "NODE_ENV=production node server.js",
     "dev": "NODE_ENV=development nodemon server.js",
     "debug": "NODE_ENV=development node --inspect server.js",
     "test": "NODE_ENV=test node --experimental-vm-modules node_modules/jest/bin/jest.js --coverage --detectOpenHandles",
@@ -44,8 +44,8 @@
     "cors": "^2.8.5",
     "cross-env": "^7.0.3",
     "dotenv": "^16.4.1",
-    "express": "^4.18.2",
-    "express-rate-limit": "^7.1.3",
+    "express": "^4.21.2",
+    "express-rate-limit": "^7.5.0",
     "google-spreadsheet": "^3.3.0",
     "helmet": "^8.1.0",
     "lodash": "^4.17.21",
@@ -53,7 +53,7 @@
     "morgan": "^1.10.0",
     "natural": "^5.2.4",
     "sentiment": "^5.0.2",
-    "winston": "^3.11.0",
+    "winston": "^3.17.0",
     "winston-daily-rotate-file": "^4.7.1"
   },
   "devDependencies": {
@@ -80,7 +80,9 @@
   "jest": {
     "transform": {},
     "testEnvironment": "node",
-    "extensionsToTreatAsEsm": [".js"],
+    "extensionsToTreatAsEsm": [
+      ".js"
+    ],
     "globals": {
       "NODE_ENV": "test"
     },
@@ -99,7 +101,9 @@
       "!**/jest*.config.js"
     ],
     "testTimeout": 30000,
-    "setupFilesAfterEnv": ["./test/setup.js"]
+    "setupFilesAfterEnv": [
+      "./test/setup.js"
+    ]
   },
   "volta": {
     "node": "18.20.1",
