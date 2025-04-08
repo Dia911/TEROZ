@@ -1,31 +1,28 @@
-const PlatformAdapter = require('./platform-adapter');
-const PlatformService = require('./platform-service');
-const logger = require('../utils/logger');
+// platform-router.js
+import path from 'path';
+import { fileURLToPath } from 'url';
+import { PlatformAdapter } from './platform-adapter.js';
 
-class PlatformRouter {
+// Khởi tạo __dirname vì ES Modules không có sẵn
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+export class PlatformRouter {
   static async route(platform, req, res) {
     try {
-      // 1. Xác thực platform
-      if (!PlatformService.supportedPlatforms.includes(platform)) {
-        return res.status(400).json({ error: 'Unsupported platform' });
-      }
+      // Tạo đường dẫn đến webhook handler theo platform
+      const webhookPath = path.join(__dirname, '../platforms', platform, 'webhook.js');
 
-      // 2. Chuẩn hóa incoming request
-      const standardizedEvent = PlatformAdapter.standardize(platform, req.body);
-      
-      // 3. Xử lý bằng core bot
-      const botResponse = await PlatformService.process(standardizedEvent);
-      
-      // 4. Chuyển đổi response phù hợp platform
-      const platformResponse = PlatformAdapter.adaptToPlatform(platform, botResponse);
-      
-      // 5. Trả kết quả
-      res.json(platformResponse);
+      // Import dynamic webhook handler
+      const { default: webhookHandler } = await import(`file://${webhookPath}`);
+
+      // Gọi handler
+      const result = await webhookHandler(req, res);
+      return result;
+
     } catch (error) {
-      logger.error(`Platform routing error: ${error}`);
-      res.status(500).json({ error: 'Internal server error' });
+      console.error(`[${platform}] Routing failed:`, error);
+      res.status(500).json({ error: 'Platform routing error' });
     }
   }
 }
-
-module.exports = PlatformRouter;
