@@ -52,7 +52,7 @@ app.use(express.urlencoded({
   parameterLimit: 1000 
 }));
 
-export class NexusOneCore {
+class NexusOneCore {
   constructor() {
     this._validateEnvironment();
     this._initializeServices();
@@ -243,5 +243,6 @@ export class NexusOneCore {
   }
 }
 
-// Export ESM-style
+// ✅ Chuẩn export để dùng như: import ChatCore from '../core/app.js'
+export default NexusOneCore;
 export { app };
